@@ -1,19 +1,17 @@
 import * as THREE from 'three';
 import { settings, onChange } from './settings.js';
 
-// YOUR TURN (Lab 3, Go further): turn this template into a small interaction of your own.
-// A short VR experience needs a clear START, a TASK the visitor completes, and an END state, plus a way to reset.
-// The template is a tiny state machine:   start  ->  task  ->  end  ->  (reset)  ->  start
-//   start : a green "Start" sphere. Look at it to begin.
-//   task  : the purple "Info cube". Look at it for the dwell time to complete the task.
-//   end   : a gold "Done" sphere. Look at it to run the task again (the reset path).
-// safe.js calls reset() from its Restart and Exit targets, so the experience can always be put back to the start.
+// Theme: "Lantern night" (the lantern is made in my-scene.js). A short experience with a clear start, a task and an end:
+//   start : a green "Match" sphere. Look at it to strike the match.
+//   task  : an orange "Wick" cylinder. Look at it for the dwell time to light the lantern.
+//   end   : a gold "Blow out" sphere, and the lantern glows. Look at it to blow the lantern out and start again.
+// The state machine is:   start  ->  task  ->  end  ->  (reset)  ->  start
+// safe.js calls reset() from its Restart and Exit targets, so everything that changes with the state is set in go().
 // A gaze target is any Object3D with userData.target = { label, onActivate, setHover }.
-// Change the labels, the captions and what each step does (play a sound with audio.ping(), move something, open a panel).
-// Keep the two root.scale lines near the end: the user's Target size setting must apply to your objects too.
 export function addMyTargets({ scene, gaze, captions, audio }) {
+  const lantern = scene.getObjectByName('lantern');   // made in my-scene.js; null if that file is changed
   const root = new THREE.Group();
-  root.position.set(-1.2, 1.2, -2);
+  root.position.set(-1.2, 1.2, -2);                    // behind and above the lantern, clear of the solids in scene.js
   scene.add(root);
 
   let state = 'start';
@@ -29,23 +27,25 @@ export function addMyTargets({ scene, gaze, captions, audio }) {
     return mesh;
   };
 
-  const startMarker = make(new THREE.SphereGeometry(0.25, 24, 16), 0x2ecc71, 'Start',
-    () => go('task', '[start] Look at the cube to finish the task'));
-  const cube = make(new THREE.BoxGeometry(0.5, 0.5, 0.5), 0xab47bc, 'Info cube',
-    () => go('end', '[done] Task complete. Look at the gold sphere to try again'));
-  const endMarker = make(new THREE.SphereGeometry(0.25, 24, 16), 0xffc107, 'Done',
-    () => go('start', '[reset] Back to the start'));
+  // Every target is at least 0.3 m wide, about 2.4 m away: about 7 degrees, above the 3 degree guideline.
+  const startMarker = make(new THREE.SphereGeometry(0.25, 24, 16), 0x2ecc71, 'Match',
+    () => go('task', '[start] Match struck. Look at the orange wick to light the lantern'));
+  const wick = make(new THREE.CylinderGeometry(0.15, 0.15, 0.5, 24), 0xff7043, 'Wick',
+    () => go('end', '[done] The lantern is lit. Look at the gold sphere to blow it out and try again'));
+  const endMarker = make(new THREE.SphereGeometry(0.25, 24, 16), 0xffc107, 'Blow out',
+    () => go('start', '[reset] The lantern is out. Look at the green match to begin again'));
 
   // Each step stands in its own place, so the user has to look at the next object on purpose. (If they shared one spot, a single
   // long look would run start > task > end without a decision.)
-  startMarker.position.y = 0.4;    // above the cube
-  endMarker.position.y = -0.4;     // below the cube
+  startMarker.position.y = 0.5;    // above the wick
+  endMarker.position.y = -0.5;     // below the wick
 
   function go(next, message) {
     state = next;
     startMarker.visible = state === 'start';
-    cube.visible = state === 'task';
+    wick.visible = state === 'task';
     endMarker.visible = state === 'end';
+    lantern?.userData.lit?.(state === 'end');   // the lantern glows only in the end state: Restart and Exit put it out too
     if (message) captions.say(message, 4);
   }
 
@@ -56,5 +56,5 @@ export function addMyTargets({ scene, gaze, captions, audio }) {
   onChange((key) => { if (key === 'targetScale') root.scale.setScalar(settings.targetScale); });
   reset();
 
-  return { root, cube, reset, get state() { return state; } };
+  return { root, cube: wick, reset, get state() { return state; } };
 }
